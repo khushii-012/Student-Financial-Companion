@@ -1,274 +1,144 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
-from datetime import date
+import matplotlib.pyplot as plt
+from datetime import datetime
 
 # ----------------------------
-# DATABASE FUNCTIONS
+# PAGE CONFIG
 # ----------------------------
+st.set_page_config(page_title="AI Personal Expense Tracker", layout="wide")
 
-def save_budget(income, rent, food, travel, study, entertainment, misc):
-    conn = sqlite3.connect("expense.db")
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    INSERT INTO budget
-    (
-        monthly_income,
-        rent_limit,
-        food_limit,
-        travel_limit,
-        study_limit,
-        entertainment_limit,
-        misc_limit
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    """,
-    (
-        income,
-        rent,
-        food,
-        travel,
-        study,
-        entertainment,
-        misc
-    ))
-
-    conn.commit()
-    conn.close()
-
-
-def save_expense(expense_date, amount, category, description):
-    conn = sqlite3.connect("expense.db")
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    INSERT INTO expenses
-    (
-        date,
-        amount,
-        category,
-        description
-    )
-    VALUES (?, ?, ?, ?)
-    """,
-    (
-        expense_date,
-        amount,
-        category,
-        description
-    ))
-
-    conn.commit()
-    conn.close()
-
-
-def get_latest_budget():
-    conn = sqlite3.connect("expense.db")
-
-    query = """
-    SELECT monthly_income
-    FROM budget
-    ORDER BY id DESC
-    LIMIT 1
-    """
-
-    df = pd.read_sql(query, conn)
-
-    conn.close()
-
-    if len(df) == 0:
-        return 0
-
-    return df.iloc[0]["monthly_income"]
-
-
-def get_total_expenses():
-    conn = sqlite3.connect("expense.db")
-
-    query = """
-    SELECT SUM(amount) AS total
-    FROM expenses
-    """
-
-    df = pd.read_sql(query, conn)
-
-    conn.close()
-
-    if pd.isna(df.iloc[0]["total"]):
-        return 0
-
-    return df.iloc[0]["total"]
-
+st.title("💰 AI Personal Expense Tracker")
+st.markdown("Track your expenses, analyze spending, and get smart insights 📊")
 
 # ----------------------------
-# STREAMLIT UI
+# SESSION STATE INIT
 # ----------------------------
+if "data" not in st.session_state:
+    st.session_state.data = pd.DataFrame(columns=[
+        "Date", "Type", "Category", "Amount", "Note"
+    ])
 
-st.set_page_config(
-    page_title="Student Financial Companion",
-    page_icon="💰",
-    layout="wide"
-)
+if "budget" not in st.session_state:
+    st.session_state.budget = {}
 
-st.title("💰 Student Financial Companion")
-
-st.markdown("""
-### Your AI Financial Friend
-
-Track expenses, manage pocket money,
-and avoid running out of money before month-end.
-""")
-
+# ----------------------------
+# SIDEBAR MENU
+# ----------------------------
 menu = st.sidebar.selectbox(
-    "Navigation",
-    [
-        "Dashboard",
-        "Budget Planner",
-        "Add Expense",
-        "Expense Analytics"
-    ]
+    "Menu",
+    ["Add Transaction", "View Dashboard", "Budget Settings", "AI Insights"]
 )
+
+# ----------------------------
+# ADD TRANSACTION
+# ----------------------------
+if menu == "Add Transaction":
+    st.subheader("➕ Add Income / Expense")
+
+    t_type = st.selectbox("Type", ["Income", "Expense"])
+    category = st.text_input("Category (Food, Travel, Bills, etc.)")
+    amount = st.number_input("Amount", min_value=0.0, step=50.0)
+    note = st.text_input("Note")
+    date = st.date_input("Date", datetime.today())
+
+    if st.button("Add Transaction"):
+        new_data = pd.DataFrame([[date, t_type, category, amount, note]],
+                                columns=st.session_state.data.columns)
+        st.session_state.data = pd.concat([st.session_state.data, new_data], ignore_index=True)
+        st.success("Transaction Added Successfully ✅")
 
 # ----------------------------
 # DASHBOARD
 # ----------------------------
+elif menu == "View Dashboard":
+    st.subheader("📊 Financial Dashboard")
 
-if menu == "Dashboard":
+    df = st.session_state.data
 
-    budget = get_latest_budget()
-    spent = get_total_expenses()
-    remaining = budget - spent
+    if df.empty:
+        st.warning("No data available yet.")
+    else:
+        col1, col2, col3 = st.columns(3)
 
-    st.header("🏠 Dashboard")
+        total_income = df[df["Type"] == "Income"]["Amount"].sum()
+        total_expense = df[df["Type"] == "Expense"]["Amount"].sum()
+        balance = total_income - total_expense
 
-    col1, col2, col3 = st.columns(3)
+        col1.metric("Total Income", f"₹{total_income}")
+        col2.metric("Total Expense", f"₹{total_expense}")
+        col3.metric("Balance", f"₹{balance}")
 
-    with col1:
-        st.metric(
-            "Monthly Budget",
-            f"₹{budget:,.0f}"
-        )
+        # ---------------- CATEGORY WISE EXPENSE ----------------
+        st.markdown("### 📌 Category-wise Expenses")
 
-    with col2:
-        st.metric(
-            "Total Spent",
-            f"₹{spent:,.0f}"
-        )
+        exp_df = df[df["Type"] == "Expense"]
+        if not exp_df.empty:
+            cat_data = exp_df.groupby("Category")["Amount"].sum()
 
-    with col3:
-        st.metric(
-            "Remaining Balance",
-            f"₹{remaining:,.0f}"
-        )
+            fig, ax = plt.subplots()
+            cat_data.plot(kind="bar", ax=ax)
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
+
+        # ---------------- TRANSACTION TABLE ----------------
+        st.markdown("### 📄 Transaction History")
+        st.dataframe(df)
 
 # ----------------------------
-# BUDGET PLANNER
+# BUDGET SETTINGS
 # ----------------------------
+elif menu == "Budget Settings":
+    st.subheader("⚙️ Set Budget Limits")
 
-elif menu == "Budget Planner":
-
-    st.header("💰 Budget Planner")
-
-    income = st.number_input(
-        "Monthly Pocket Money",
-        min_value=0
-    )
-
-    rent = st.number_input(
-        "Rent Budget",
-        min_value=0
-    )
-
-    food = st.number_input(
-        "Food Budget",
-        min_value=0
-    )
-
-    travel = st.number_input(
-        "Travel Budget",
-        min_value=0
-    )
-
-    study = st.number_input(
-        "Study Budget",
-        min_value=0
-    )
-
-    entertainment = st.number_input(
-        "Entertainment Budget",
-        min_value=0
-    )
-
-    misc = st.number_input(
-        "Misc Budget",
-        min_value=0
-    )
+    category = st.text_input("Category")
+    limit = st.number_input("Set Budget Limit", min_value=0.0, step=100.0)
 
     if st.button("Save Budget"):
+        st.session_state.budget[category] = limit
+        st.success(f"Budget set for {category} ✔")
 
-        save_budget(
-            income,
-            rent,
-            food,
-            travel,
-            study,
-            entertainment,
-            misc
-        )
-
-        st.success("✅ Budget Saved Successfully!")
+    st.markdown("### Current Budgets")
+    st.write(st.session_state.budget)
 
 # ----------------------------
-# ADD EXPENSE
+# AI INSIGHTS
 # ----------------------------
+elif menu == "AI Insights":
+    st.subheader("🧠 Smart AI Insights")
 
-elif menu == "Add Expense":
+    df = st.session_state.data
 
-    st.header("➕ Add Expense")
+    if df.empty:
+        st.warning("No data to analyze yet.")
+    else:
+        exp_df = df[df["Type"] == "Expense"]
 
-    amount = st.number_input(
-        "Amount",
-        min_value=0
-    )
+        st.markdown("### 🔍 Spending Analysis")
 
-    category = st.selectbox(
-        "Category",
-        [
-            "Food",
-            "Travel",
-            "Study",
-            "Entertainment",
-            "Rent",
-            "Misc"
-        ]
-    )
+        total_spent = exp_df["Amount"].sum()
+        st.write(f"Total Spending: ₹{total_spent}")
 
-    description = st.text_input(
-        "Description"
-    )
+        # Highest spending category
+        if not exp_df.empty:
+            top_category = exp_df.groupby("Category")["Amount"].sum().idxmax()
+            st.success(f"You are spending most on: **{top_category}**")
 
-    expense_date = str(date.today())
+        # ---------------- AI RULE-BASED INSIGHTS ----------------
+        st.markdown("### 🤖 AI Suggestions")
 
-    if st.button("Add Expense"):
+        for cat, limit in st.session_state.budget.items():
+            spent = exp_df[exp_df["Category"] == cat]["Amount"].sum()
 
-        save_expense(
-            expense_date,
-            amount,
-            category,
-            description
-        )
+            if spent > limit:
+                st.error(f"⚠ You exceeded budget in {cat} (₹{spent} / ₹{limit})")
+            elif spent > 0.8 * limit:
+                st.warning(f"⚠ You are close to budget limit in {cat}")
+            else:
+                st.info(f"✔ Spending is under control in {cat}")
 
-        st.success("✅ Expense Added Successfully!")
-
-# ----------------------------
-# ANALYTICS
-# ----------------------------
-
-elif menu == "Expense Analytics":
-
-    st.header("📊 Expense Analytics")
-
-    st.info(
-        "Charts and AI insights will be added in the next version."
-    )
+        # General advice
+        if total_spent > 10000:
+            st.warning("💡 Tip: Your spending is high this month. Try reducing non-essential expenses.")
+        else:
+            st.success("💡 Good job! Your spending is under control.")
