@@ -4,7 +4,7 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-App-red)
 ![Status](https://img.shields.io/badge/Status-Working-success)
 
-💡 *💡 “A smarter way to understand your money flow.”*
+💡 * “A smarter way to understand your money flow.”*
 
 ---
 
