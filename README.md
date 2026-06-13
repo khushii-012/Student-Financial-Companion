@@ -4,7 +4,7 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-App-red)
 ![Status](https://img.shields.io/badge/Status-Working-success)
 
-💡 *“Smarter money decisions powered by AI”*
+💡 *💡 “A smarter way to understand your money flow.”*
 
 ---
 
