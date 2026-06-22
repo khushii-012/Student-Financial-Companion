@@ -3,6 +3,7 @@ import sqlite3
 conn = sqlite3.connect("expense.db")
 cursor = conn.cursor()
 
+# Budget Table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS budget (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,6 +17,7 @@ CREATE TABLE IF NOT EXISTS budget (
 )
 """)
 
+# Expense Table
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS expenses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
